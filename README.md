@@ -9,7 +9,7 @@ Here are the steps to run:
 * update the folder path in server.json, ensure the deploy folder and logs folder exist
 * copy the sample.json into **some-other-short-code**.json eg 1234.json and add the keys etc from zerodha api setup
 * cd into src folder, run => python3 main.py
-* access your application on http://localhost:8080/me/**some-other-short-code**
+* access your application on http://localhost:8080/me/some-other-short-code
 
 
 
