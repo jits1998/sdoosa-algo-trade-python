@@ -2,6 +2,6 @@
   "port": 8080,
   "enableSSL": false,
   "sslPort": 8443,
-  "deployDir": "D:/temp/python-deploy",
-  "logFileDir": "D:/temp/python-deploy/logs"
+  "deployDir": "/home/jitendra/trading/tmp/python-deploy",
+  "logFileDir": "/home/jitendra/trading/tmp/python-deploy/logs"
 }

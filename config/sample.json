@@ -1,0 +1,9 @@
+{
+  "broker": "zerodha",
+  "clientID": "",
+  "appKey": "",
+  "appSecret": "",
+  "redirectUrl": "://localhost:8080/apis/broker/login/zerodha",
+  "multiple": "1",
+  "algoType" : "AlgoType1"
+}
