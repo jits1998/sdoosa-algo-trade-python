@@ -1,3 +1,5 @@
+Major architectural and other changes here. The below videos may not work.
+
 # sdoosa-algo-trade-python
 
 This project is mainly for newbies into algo trading who are interested in learning to code their own trading algo using python interpreter.
