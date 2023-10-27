@@ -12,21 +12,25 @@ class ZerodhaLogin(BaseLogin):
     logging.info('==> ZerodhaLogin .args => %s', args);
     systemConfig = getSystemConfig()
     brokerHandle = KiteConnect(api_key=self.brokerAppDetails.appKey)
+    self.setBrokerHandle(brokerHandle)
     redirectUrl = None
     if 'request_token' in args:
       requestToken = args['request_token']
       logging.info('Zerodha requestToken = %s', requestToken)
-      session = brokerHandle.generate_session(requestToken, api_secret=self.brokerAppDetails.appSecret)
+      broker_session = brokerHandle.generate_session(requestToken, api_secret=self.brokerAppDetails.appSecret)
+
+      if not broker_session['user_id'] == self.brokerAppDetails.clientID:
+        raise Exception("Invalid User Credentials")
+
       
-      accessToken = session['access_token']
-      accessToken = accessToken
+      accessToken = broker_session['access_token']
       logging.info('Zerodha accessToken = %s', accessToken)
       brokerHandle.set_access_token(accessToken)
       
       logging.info('Zerodha Login successful. accessToken = %s', accessToken)
 
       # set broker handle and access token to the instance
-      self.setBrokerHandle(brokerHandle)
+      
       self.setAccessToken(accessToken)
 
       # redirect to home page with query param loggedIn=true

@@ -1,15 +1,27 @@
 from flask.views import MethodView
+import importlib
 import json
 import logging
-import threading
+import threading, time
 from config.Config import getSystemConfig
-from core.Algo import Algo
+from flask import session
+
+from config.Config import getSystemConfig, getBrokerAppConfig
+from utils.Utils import Utils
 
 class StartAlgoAPI(MethodView):
   def post(self):
-    # start algo in a separate thread
-    x = threading.Thread(target=Algo.startAlgo)
-    x.start()
+    if not Utils.getTradeManager(short_code = session['short_code']) :
+      #get User's Algo type
+      brokerAppConfig = getBrokerAppConfig(session['short_code'])
+      algoType = brokerAppConfig.get("algoType","BaseAlgo")
+      algoConfigModule = importlib.import_module('algos.' + algoType, algoType)
+      algoConfigClass = getattr(algoConfigModule, algoType)
+      # start algo in a separate thread
+      x = threading.Thread(target = algoConfigClass().startAlgo, name="Algo", args=(session['access_token'], session['short_code'],))
+
+      x.start()
+      time.sleep(5)
     systemConfig = getSystemConfig()
     homeUrl = systemConfig['homeUrl'] + '?algoStarted=true'
     logging.info('Sending redirect url %s in response', homeUrl)

@@ -13,3 +13,4 @@ class TickData:
     self.low = 0
     self.close = 0
     self.change = 0
+    self.exchange_timestamp = None

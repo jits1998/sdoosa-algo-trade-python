@@ -1,10 +1,9 @@
 
-from core.Controller import Controller
 
 class BaseOrderManager:
-  def __init__(self, broker):
+  def __init__(self, broker, brokerHandle):
     self.broker = broker
-    self.brokerHandle = Controller.getBrokerLogin().getBrokerHandle()
+    self.brokerHandle = brokerHandle
 
   def placeOrder(self, orderInputParams):
     pass

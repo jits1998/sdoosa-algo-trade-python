@@ -11,8 +11,8 @@ def getSystemConfig():
     jsonSystemData = json.load(system)
     return jsonSystemData
 
-def getBrokerAppConfig():
-  with open('../config/brokerapp.json', 'r') as brokerapp:
+def getBrokerAppConfig(short_code):
+  with open('../config/{short_code}.json'.format(short_code = short_code), 'r') as brokerapp:
     jsonUserData = json.load(brokerapp)
     return jsonUserData
 

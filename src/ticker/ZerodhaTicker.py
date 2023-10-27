@@ -8,17 +8,15 @@ from instruments.Instruments import Instruments
 from models.TickData import TickData
 
 class ZerodhaTicker(BaseTicker):
-  def __init__(self):
-    super().__init__("zerodha")
+  def __init__(self, short_code):
+    super().__init__("zerodha", short_code)
 
-  def startTicker(self):
-    brokerAppDetails = self.brokerLogin.getBrokerAppDetails()
-    accessToken = self.brokerLogin.getAccessToken()
+  def startTicker(self, appKey, accessToken):
     if accessToken == None:
       logging.error('ZerodhaTicker startTicker: Cannot start ticker as accessToken is empty')
       return
     
-    ticker = KiteTicker(brokerAppDetails.appKey, accessToken)
+    ticker = KiteTicker(appKey, accessToken)
     ticker.on_connect = self.on_connect
     ticker.on_close = self.on_close
     ticker.on_error = self.on_error
@@ -35,23 +33,24 @@ class ZerodhaTicker(BaseTicker):
     logging.info('ZerodhaTicker: stopping..')
     self.ticker.close(1000, "Manual close")
 
-  def registerSymbols(self, symbols):
+  def registerSymbols(self, symbols, mode = KiteTicker.MODE_QUOTE):
     tokens = []
     for symbol in symbols:
       isd = Instruments.getInstrumentDataBySymbol(symbol)
       token = isd['instrument_token']
-      logging.info('ZerodhaTicker registerSymbol: %s token = %s', symbol, token)
+      logging.debug('ZerodhaTicker registerSymbol: %s token = %s', symbol, token)
       tokens.append(token)
 
-    logging.info('ZerodhaTicker Subscribing tokens %s', tokens)
+    logging.debug('ZerodhaTicker Subscribing tokens %s', tokens)
     self.ticker.subscribe(tokens)
+    self.ticker.set_mode(mode, tokens)
 
   def unregisterSymbols(self, symbols):
     tokens = []
     for symbol in symbols:
       isd = Instruments.getInstrumentDataBySymbol(symbol)
       token = isd['instrument_token']
-      logging.info('ZerodhaTicker unregisterSymbols: %s token = %s', symbol, token)
+      logging.debug('ZerodhaTicker unregisterSymbols: %s token = %s', symbol, token)
       tokens.append(token)
 
     logging.info('ZerodhaTicker Unsubscribing tokens %s', tokens)
@@ -65,11 +64,14 @@ class ZerodhaTicker(BaseTicker):
       tradingSymbol = isd['tradingsymbol']
       tick = TickData(tradingSymbol)
       tick.lastTradedPrice = bTick['last_price']
-      tick.lastTradedQuantity = bTick['last_quantity']
-      tick.avgTradedPrice = bTick['average_price']
-      tick.volume = bTick['volume']
-      tick.totalBuyQuantity = bTick['buy_quantity']
-      tick.totalSellQuantity = bTick['sell_quantity']
+      if not isd['segment'] == "INDICES":
+        tick.lastTradedQuantity = bTick['last_traded_quantity']
+        tick.avgTradedPrice = bTick['average_traded_price']
+        tick.volume = bTick['volume_traded']
+        tick.totalBuyQuantity = bTick['total_buy_quantity']
+        tick.totalSellQuantity = bTick['total_sell_quantity']
+      else:
+        tick.exchange_timestamp = bTick['exchange_timestamp']
       tick.open = bTick['ohlc']['open']
       tick.high = bTick['ohlc']['high']
       tick.low = bTick['ohlc']['low']

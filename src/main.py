@@ -1,26 +1,39 @@
+from logging.handlers import TimedRotatingFileHandler
 import os
-import logging
-from flask import Flask
+import logging, datetime
+from flask import Flask, redirect, session
 
-from config.Config import getBrokerAppConfig, getServerConfig, getSystemConfig
+from flask_session import Session
+
+from config.Config import getServerConfig
 from restapis.HomeAPI import HomeAPI
 from restapis.BrokerLoginAPI import BrokerLoginAPI
 from restapis.StartAlgoAPI import StartAlgoAPI
-from restapis.PositionsAPI import PositionsAPI
-from restapis.HoldingsAPI import HoldingsAPI
+from restapis.ChartAPI import ChartAPI
 
 app = Flask(__name__)
-app.config['DEBUG'] = True
 
-app.add_url_rule("/", view_func=HomeAPI.as_view("home_api"))
+app.config["SESSION_TYPE"] = "filesystem"
+
+Session(app)
+
+app.config['PERMANENT_SESSION_LIFETIME'] =  datetime.timedelta(minutes=60)
+
+@app.route("/")
+def redirectHome():
+  return redirect("/me/"+session.get('short_code',"5207"))
+
+app.add_url_rule("/", 'default_home', redirectHome)
+app.add_url_rule("/me/<short_code>", 'home', view_func=HomeAPI.as_view("home_api"))
 app.add_url_rule("/apis/broker/login/zerodha", view_func=BrokerLoginAPI.as_view("broker_login_api"))
 app.add_url_rule("/apis/algo/start", view_func=StartAlgoAPI.as_view("start_algo_api"))
-app.add_url_rule("/positions", view_func=PositionsAPI.as_view("positions_api"))
-app.add_url_rule("/holdings", view_func=HoldingsAPI.as_view("holdings_api"))
+app.add_url_rule("/chart/<short_code>", view_func=ChartAPI.as_view("chart_api"))
+
 
 def initLoggingConfg(filepath):
   format = "%(asctime)s: %(message)s"
-  logging.basicConfig(filename=filepath, format=format, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S")
+  handler = TimedRotatingFileHandler(filepath, when='midnight')
+  logging.basicConfig(handlers=[handler], format=format, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S")
 
 # Execution starts here
 serverConfig = getServerConfig()
@@ -41,9 +54,21 @@ initLoggingConfg(logFileDir + "/app.log")
 
 logging.info('serverConfig => %s', serverConfig)
 
-brokerAppConfig = getBrokerAppConfig()
-logging.info('brokerAppConfig => %s', brokerAppConfig)
+# brokerAppConfig = getBrokerAppConfig()
+# logging.info('brokerAppConfig => %s', brokerAppConfig)
 
 port = serverConfig['port']
 
-app.run('localhost', port)
+def timectime(s):
+  if s is None:
+    return None
+  if isinstance(s, str):
+    s = datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S").timestamp()
+  return datetime.datetime.fromtimestamp(s).strftime("%H:%M:%S")
+
+app.jinja_env.filters['ctime']= timectime
+
+app.run('localhost', port, debug=True)
+
+
+

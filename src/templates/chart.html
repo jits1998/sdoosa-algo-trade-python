@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+    <head>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+        
+    </head>
+    <body style="font-family:arial, sans-serif">
+        <div id="chart" class="chart"></div>
+    </body>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.24.2/plotly.min.js"></script>
+    <script type="text/javascript">
+        window.setTimeout(function(){ document.location.reload(true); }, 15000);
+            
+        var graphs = {{graphJSON | safe}};
+        Plotly.newPlot('chart',graphs,{}); 
+        
+        Plotly.relayout('chart', {
+            'xaxis.autorange': true,
+            'yaxis.autorange': true
+        });
+
+        
+    </script>
+
+</html>

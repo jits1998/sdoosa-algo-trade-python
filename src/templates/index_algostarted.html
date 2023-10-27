@@ -21,16 +21,24 @@
     .center {
       text-align: center;
     }
+    td{
+      text-align: left;
+    }
   </style>
 
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script>
-    function stopAlgo() {
-      var url =  "http://localhost:8080" + "/apis/algo/stop"
+    window.setTimeout(function(){ document.location.reload(true); }, 15000);
+    function startAlgo() {
+      var url =  "/apis/algo/start"
       var data = {};
       $.post(url, {},  
         function(data, status, xhr) {
-          alert('status: ' + status + ', data: ' + JSON.stringify(data));
+          if (data.redirect) {
+            window.location.href = data.redirect;
+          } else {
+            alert('status: ' + status + ', data: ' + JSON.stringify(data));
+          }
         },
         'json'
       );
@@ -40,12 +48,87 @@
 </head>
 
 <body>
-  <h1 style="color: blue" class="center">Welcome to algo trading in python</h1>
+  {% macro print_price (price) %}
+    {%if price> 0 %}
+      <b>{{"{:,.2f}".format(price)}}</b>
+    {% else %}
+      {{"{:,.2f}".format(price)}}
+    {% endif %}
+  {% endmacro %}
+  
   <div class="center">
-    <!--button class="button" onClick="startAlgo()">
-      Start Algo
-    </button-->
-    <h4>Algo is running...</h4>
+    <div style="width: fit-content">
+      {% if algoStarted %}
+          <h4>Algo is running... </h4>
+          {% if strategies|length > 0 %}
+            <hr/>
+            <b>Nifty :: {{"{:,.2f}".format(ltps["NIFTY 50"]) if strategies|length > 0}} || 
+            Bank Nifty :: {{"{:,.2f}".format(ltps["NIFTY BANK"]) if strategies|length > 0}} || 
+            Fin Nifty :: {{"{:,.2f}".format(ltps["NIFTY FIN SERVICE"]) if strategies|length > 0}} || 
+            VIX :: {{ltps["INDIA VIX"] if strategies|length > 0}}  ||
+            {{ltps["exchange_timestamp"].strftime('%A, %b %d %Y / %X')}} <br/><br/>
+          Available Margin:: {{"{:,.2f}".format((
+            margins['equity']['available']['collateral']
+            + margins['equity']['available']['opening_balance']
+            - margins['equity']['utilised']['debits'])/100000)}}</b><br/><br/>
+          {% endif %}
+      {% else %}
+        {% if session['access_token'] %}
+          <div class="center">
+            <button class="button" onClick="startAlgo()">Start Algo</button>
+          </div>
+        {% endif %}
+      {% endif %}
+      {% set pnls = [] %}
+      
+      {% for strategy in strategies %}
+      {%if strategy.trades|length > 0 %}
+      <table border=1 frame=box rules=rows cellpadding = "5px;" style="min-width: 960px">
+        <tr >
+          <th style="width: 70px;"></th>
+          <th style="width: 200px; text-align: left;" colspan=8>{{strategy.getName()}} :: {{strategy.getLots()}}x  ==> {{strategy.strategyTarget|round(2)}} @ {{strategy.strategySL|round(2)}} </th>
+        </tr>
+      {% for trade in strategy.trades| sort (attribute = startTimestamp ) %}
+        {% if not trade.tradeState in ['disabled', 'created']%}
+        <tr>
+          <td style="width: 70px;">{{trade.startTimestamp|ctime}}</td>
+          <td style="width: 200px; text-align: left;">{{trade.tradingSymbol}}</td>
+          <td style="min-width: 50px;">{{trade.direction}}
+          {% if trade.exit == 0 and not trade.tradeState in ['cancelled']%}
+            {% if trade.direction == "SHORT" and  totalBuys[trade.tradingSymbol] > 0 %}
+            ({{"%.2f"|format(totalSells[trade.tradingSymbol] / totalBuys[trade.tradingSymbol])}})
+            {% elif trade.direction == "LONG" and totalSells[trade.tradingSymbol] > 0 %}
+              ({{"%.2f"|format(totalBuys[trade.tradingSymbol] / totalSells[trade.tradingSymbol])}})
+            {% endif %}
+          {% endif %}</td>
+          <td style="text-align: right;min-width: 50px;">{{trade.qty}}</td>
+          <td style="text-align: right;min-width: 50px;">{{"%.2f"|format(trade.entry)}}</td>
+          {% if trade.exit == 0 and not trade.tradeState in ['cancelled'] %}
+            
+          <td style="text-align: right;min-width: 75px;">{{"%.2f"|format(trade.cmp)}}</td>
+          <td style="text-align: right;min-width: 75px;">{{"{:,.2f}".format(trade.pnl)}}</td>
+          <td colspan="2" style="width: 210px;text-align: center;"><b>{{ trade.tradeState if trade.entry> 0 else "Open"}}</b></td>
+          {% else %}
+          <td style="text-align: right;min-width: 75px;">{{"%.2f"|format(trade.exit)}}</td>
+          <td style="text-align: right;min-width: 75px;">{{"{:,.2f}".format(trade.pnl)}}</td>
+          <td style="width: 145px;">{{trade.exitReason or trade.tradeState}}</td>
+          <td style="width: 45px;">{{trade.endTimestamp|ctime or ""}}</td>
+          {% endif %}
+          
+        </tr>
+        {% endif %}
+      {% endfor %}
+      <tfoot>
+        <td colspan="5" style="min-width: 50px;text-align: right;"">Total PnL :: </td>
+        <td colspan="2" style="text-align: right;">{{ print_price (strategy.trades | sum(attribute='pnl')) }}</td>
+      </tfoot>
+    </table>
+      {% if pnls.append(strategy.trades | sum(attribute='pnl')) %}{% endif %}
+      {% endif %}
+      {% endfor %}
+      <br/>
+      <b style="padding-left: 315px;">Total:</b> {{ print_price (pnls | sum) }}
+    </div>
   </div>
 </body>
 

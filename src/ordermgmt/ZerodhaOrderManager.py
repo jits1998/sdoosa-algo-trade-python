@@ -2,24 +2,42 @@ import logging
 
 from ordermgmt.BaseOrderManager import BaseOrderManager
 from ordermgmt.Order import Order
+from ordermgmt.OrderInputParams import OrderInputParams
 
 from models.ProductType import ProductType
 from models.OrderType import OrderType
 from models.Direction import Direction
 from models.OrderStatus import OrderStatus
+from instruments.Instruments import Instruments
 
 from utils.Utils import Utils
 
 class ZerodhaOrderManager(BaseOrderManager):
-  def __init__(self):
-    super().__init__("zerodha")
+  clientID = None
+
+  def __init__(self, brokerHandle, clientID = None):
+    super().__init__("zerodha", brokerHandle)
+    self.clientID = clientID
 
   def placeOrder(self, orderInputParams):
-    logging.info('%s: Going to place order with params %s', self.broker, orderInputParams)
+    logging.debug('%s:%s:: Going to place order with params %s', self.broker, self.clientID, orderInputParams)
     kite = self.brokerHandle
+    orderInputParams.qty = int(orderInputParams.qty)
+    import math
+    lot_size = Instruments.getInstrumentDataBySymbol(orderInputParams.tradingSymbol)['lot_size']
+    leg_count = max(math.ceil(orderInputParams.qty/900), 2)
+    slice = orderInputParams.qty / leg_count
+    iceberg_quantity = math.ceil(slice / lot_size) * lot_size
+    iceberg_legs = leg_count
+    
+    if orderInputParams.qty>900 and orderInputParams.orderType == OrderType.MARKET:
+      orderInputParams.orderType = OrderType.LIMIT
+
     try:
       orderId = kite.place_order(
-        variety=kite.VARIETY_REGULAR,
+        variety= kite.VARIETY_REGULAR if orderInputParams.qty<=900 else kite.VARIETY_ICEBERG,
+        iceberg_legs = iceberg_legs,
+        iceberg_quantity = iceberg_quantity,
         exchange=kite.EXCHANGE_NFO if orderInputParams.isFnO == True else kite.EXCHANGE_NSE,
         tradingsymbol=orderInputParams.tradingSymbol,
         transaction_type=self.convertToBrokerDirection(orderInputParams.direction),
@@ -29,101 +47,145 @@ class ZerodhaOrderManager(BaseOrderManager):
         product=self.convertToBrokerProductType(orderInputParams.productType),
         order_type=self.convertToBrokerOrderType(orderInputParams.orderType))
 
-      logging.info('%s: Order placed successfully, orderId = %s', self.broker, orderId)
+      logging.info('%s:%s:: Order placed successfully, orderId = %s with tag: %s', self.broker, self.clientID, orderId, orderInputParams.tag)
       order = Order(orderInputParams)
       order.orderId = orderId
       order.orderPlaceTimestamp = Utils.getEpoch()
       order.lastOrderUpdateTimestamp = Utils.getEpoch()
       return order
     except Exception as e:
-      logging.info('%s Order placement failed: %s', self.broker, str(e))
+      if "Too many requests" in str(e):
+        logging.info('%s:%s retrying order placement in 1 s for %s', self.broker, self.clientID, order.orderId)
+        import time
+        time.sleep(1)
+        self.placeOrder(orderInputParams)
+      logging.info('%s:%s Order placement failed: %s', self.broker, self.clientID, str(e))
       raise Exception(str(e))
 
-  def modifyOrder(self, order, orderModifyParams):
-    logging.info('%s: Going to modify order with params %s', self.broker, orderModifyParams)
+  def modifyOrder(self, order, orderModifyParams, tradeQty):
+    logging.debug('%s:%s:: Going to modify order with params %s', self.broker, self.clientID, orderModifyParams)
+    
+    if order.orderType == OrderType.SL_LIMIT and orderModifyParams.newTriggerPrice == order.triggerPrice:
+      #nothing to modify
+      return order
+    
     kite = self.brokerHandle
+
     try:
       orderId = kite.modify_order(
-        variety=kite.VARIETY_REGULAR,
+        variety= kite.VARIETY_REGULAR if tradeQty<=900 else kite.VARIETY_ICEBERG,
         order_id=order.orderId,
-        quantity=orderModifyParams.newQty if orderModifyParams.newQty > 0 else None,
+        quantity=int(orderModifyParams.newQty) if orderModifyParams.newQty > 0 else None,
         price=orderModifyParams.newPrice if orderModifyParams.newPrice > 0 else None,
         trigger_price=orderModifyParams.newTriggerPrice if orderModifyParams.newTriggerPrice > 0 else None,
         order_type=orderModifyParams.newOrderType if orderModifyParams.newOrderType != None else None)
 
-      logging.info('%s Order modified successfully for orderId = %s', self.broker, orderId)
+      logging.info('%s:%s Order modified successfully for orderId = %s', self.broker, self.clientID, orderId)
       order.lastOrderUpdateTimestamp = Utils.getEpoch()
       return order
     except Exception as e:
-      logging.info('%s Order modify failed: %s', self.broker, str(e))
+      if "Too many requests" in str(e):
+        logging.info('%s:%s retrying order modification in 1 s for %s', self.broker, self.clientID, order.orderId)
+        import time
+        time.sleep(1)
+        self.modifyOrder(order, orderModifyParams, tradeQty)
+      logging.info('%s:%s Order %s modify failed: %s', self.broker, self.clientID, order.orderId, str(e))
       raise Exception(str(e))
 
   def modifyOrderToMarket(self, order):
-    logging.info('%s: Going to modify order with params %s', self.broker)
-    kite = self.brokerHandle
-    try:
-      orderId = kite.modify_order(
-        variety=kite.VARIETY_REGULAR,
-        order_id=order.orderId,
-        order_type=kite.ORDER_TYPE_MARKET)
+    raise Exception("Method not to be called")
+    # logging.debug('%s:%s:: Going to modify order with params %s', self.broker, self.clientID)
+    # kite = self.brokerHandle
+    # try:
+    #   orderId = kite.modify_order(
+    #     variety= kite.VARIETY_REGULAR,
+    #     order_id=order.orderId,
+    #     order_type=kite.ORDER_TYPE_MARKET)
 
-      logging.info('%s Order modified successfully to MARKET for orderId = %s', self.broker, orderId)
-      order.lastOrderUpdateTimestamp = Utils.getEpoch()
-      return order
-    except Exception as e:
-      logging.info('%s Order modify to market failed: %s', self.broker, str(e))
-      raise Exception(str(e))
+    #   logging.info('%s:%s Order modified successfully to MARKET for orderId = %s', self.broker, self.clientID, orderId)
+    #   order.lastOrderUpdateTimestamp = Utils.getEpoch()
+    #   return order
+    # except Exception as e:
+    #   logging.info('%s:%s Order modify to market failed: %s', self.broker, self.clientID, str(e))
+    #   raise Exception(str(e))
 
   def cancelOrder(self, order):
-    logging.info('%s Going to cancel order %s', self.broker, order.orderId)
+    logging.debug('%s:%s Going to cancel order %s', self.broker, self.clientID, order.orderId)
     kite = self.brokerHandle
     try:
       orderId = kite.cancel_order(
-        variety=kite.VARIETY_REGULAR,
+        variety= kite.VARIETY_REGULAR if order.qty<=900 else kite.VARIETY_ICEBERG,
         order_id=order.orderId)
 
-      logging.info('%s Order cancelled successfully, orderId = %s', self.broker, orderId)
+      logging.info('%s:%s Order cancelled successfully, orderId = %s', self.broker, self.clientID, orderId)
       order.lastOrderUpdateTimestamp = Utils.getEpoch()
       return order
     except Exception as e:
-      logging.info('%s Order cancel failed: %s', self.broker, str(e))
+      if "Too many requests" in str(e):
+        logging.info('%s:%s retrying order cancellation in 1 s for %s', self.broker, self.clientID, order.orderId)
+        import time
+        time.sleep(1)
+        self.cancelOrder(order)
+      logging.info('%s:%s Order cancel failed: %s', self.broker, self.clientID, str(e))
       raise Exception(str(e))
 
   def fetchAndUpdateAllOrderDetails(self, orders):
-    logging.info('%s Going to fetch order book', self.broker)
+    logging.debug('%s:%s Going to fetch order book', self.broker, self.clientID)
     kite = self.brokerHandle
     orderBook = None
     try:
       orderBook = kite.orders()
     except Exception as e:
-      logging.error('%s Failed to fetch order book', self.broker)
-      return
+      logging.error('%s:%s Failed to fetch order book', self.broker, self.clientID)
+      return []
 
-    logging.info('%s Order book length = %d', self.broker, len(orderBook))
+    logging.debug('%s:%s Order book length = %d', self.broker, self.clientID, len(orderBook))
     numOrdersUpdated = 0
+    missingOrders = []
+    
     for bOrder in orderBook:
       foundOrder = None
-      for order in orders:
+      foundChildOrder = None
+      parentOrder = None
+      for order in orders.keys():
         if order.orderId == bOrder['order_id']:
           foundOrder = order
-          break
-      
+        if order.orderId == bOrder['parent_order_id']:
+          foundChildOrder = bOrder
+          parentOrder = order
+          
       if foundOrder != None:
-        logging.info('Found order for orderId %s', foundOrder.orderId)
+        logging.debug('Found order for orderId %s', foundOrder.orderId)
         foundOrder.qty = bOrder['quantity']
         foundOrder.filledQty = bOrder['filled_quantity']
         foundOrder.pendingQty = bOrder['pending_quantity']
         foundOrder.orderStatus = bOrder['status']
         if foundOrder.orderStatus == OrderStatus.CANCELLED and foundOrder.filledQty > 0:
           # Consider this case as completed in our system as we cancel the order with pending qty when strategy stop timestamp reaches
-          foundOrder.orderStatus = OrderStatus.COMPLETED
+          foundOrder.orderStatus = OrderStatus.COMPLETE
         foundOrder.price = bOrder['price']
         foundOrder.triggerPrice = bOrder['trigger_price']
         foundOrder.averagePrice = bOrder['average_price']
-        logging.info('%s Updated order %s', self.broker, foundOrder)
+        foundOrder.lastOrderUpdateTimestamp = bOrder['exchange_update_timestamp']
+        logging.debug('%s:%s:%s Updated order %s', self.broker, self.clientID, orders[foundOrder], foundOrder)
         numOrdersUpdated += 1
-
-    logging.info('%s: %d orders updated with broker order details', self.broker, numOrdersUpdated)
+      elif foundChildOrder != None:
+        oip = OrderInputParams(parentOrder.tradingSymbol)
+        oip.exchange = parentOrder.exchange
+        oip.productType = parentOrder.productType
+        oip.orderType = parentOrder.orderType
+        oip.price = parentOrder.price
+        oip.triggerPrice = parentOrder.triggerPrice
+        oip.qty = parentOrder.qty
+        oip.tag = parentOrder.tag
+        oip.productType = parentOrder.productType
+        order = Order(oip)
+        order.orderId = bOrder['order_id']
+        order.parentOrderId = parentOrder.orderId
+        order.orderPlaceTimestamp = Utils.getEpoch() #TODO should get from bOrder
+        missingOrders.append(order)
+      
+    return missingOrders
 
   def convertToBrokerProductType(self, productType):
     kite = self.brokerHandle

@@ -53,10 +53,10 @@ class Instruments:
     Instruments.updateLastSavedTimestamp()
 
   @staticmethod
-  def fetchInstrumentsFromServer():
+  def fetchInstrumentsFromServer(short_code):
     instrumentsList = []
     try:
-      brokerHandle = Controller.getBrokerLogin().getBrokerHandle()
+      brokerHandle = Controller.getBrokerLogin(short_code).getBrokerHandle()
       logging.info('Going to fetch instruments from server...')
       instrumentsList = brokerHandle.instruments('NSE')
       instrumentsListFnO = brokerHandle.instruments('NFO')
@@ -65,16 +65,17 @@ class Instruments:
       logging.info('Fetched %d instruments from server.', len(instrumentsList))
     except Exception as e:
       logging.exception("Exception while fetching instruments from server")
+      return []
     return instrumentsList
 
   @staticmethod
-  def fetchInstruments():
+  def fetchInstruments(short_code):
     if Instruments.instrumentsList:
       return Instruments.instrumentsList
 
     instrumentsList = Instruments.loadInstruments()
     if len(instrumentsList) == 0 or Instruments.shouldFetchFromServer() == True:
-      instrumentsList = Instruments.fetchInstrumentsFromServer()
+      instrumentsList = Instruments.fetchInstrumentsFromServer(short_code)
       # Save instruments to file locally
       if len(instrumentsList) > 0:
         Instruments.saveInstruments(instrumentsList)
@@ -82,7 +83,7 @@ class Instruments:
     if len(instrumentsList) == 0:
       print("Could not fetch/load instruments data. Hence exiting the app.")
       logging.error("Could not fetch/load instruments data. Hence exiting the app.");
-      exit(-2)
+      return instrumentsList
     
     Instruments.symbolToInstrumentMap = {}
     Instruments.tokenToInstrumentMap = {}

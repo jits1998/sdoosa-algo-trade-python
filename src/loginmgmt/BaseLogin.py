@@ -4,6 +4,7 @@ class BaseLogin:
   def __init__(self, brokerAppDetails):
     self.brokerAppDetails = brokerAppDetails
     self.broker = brokerAppDetails.broker
+    self.accessToken = None
 
   # Derived class should implement login function and return redirect url
   def login(self, args):

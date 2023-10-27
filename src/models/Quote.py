@@ -17,3 +17,4 @@ class Quote:
     self.oiDayLow = 0
     self.lowerCiruitLimit = 0
     self.upperCircuitLimit = 0
+    self.oi = 0 

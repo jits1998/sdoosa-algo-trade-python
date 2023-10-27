@@ -14,6 +14,7 @@ class OrderInputParams:
     self.qty = 0
     self.price = 0
     self.triggerPrice = 0 # Applicable in case of SL order
+    self.tag = None
 
   def __str__(self):
     return "symbol=" + str(self.tradingSymbol) + ", exchange=" + self.exchange \

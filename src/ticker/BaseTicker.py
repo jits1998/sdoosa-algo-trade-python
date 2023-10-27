@@ -3,9 +3,10 @@ import logging
 from core.Controller import Controller
 
 class BaseTicker:
-  def __init__(self, broker):
+  def __init__(self, broker, short_code):
+    self.short_code = short_code
     self.broker = broker
-    self.brokerLogin = Controller.getBrokerLogin()
+    self.brokerLogin = Controller.getBrokerLogin(short_code)
     self.ticker = None
     self.tickListeners = []
 
