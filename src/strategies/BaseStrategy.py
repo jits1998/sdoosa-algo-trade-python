@@ -7,12 +7,13 @@ from models.Quote import Quote
 from core.Quotes import Quotes
 from trademgmt.Trade import Trade
 from trademgmt.TradeExitReason import TradeExitReason
+from config.Config import getBrokerAppConfig
 from instruments.Instruments import Instruments
 
 from utils.Utils import Utils
 
 class BaseStrategy:
-  def __init__(self, name, short_code, multiple = 0):
+  def __init__(self, name, short_code):
     # NOTE: All the below properties should be set by the Derived Class (Specific to each strategy)
     self.name = name # strategy name
     self.short_code = short_code
@@ -37,7 +38,6 @@ class BaseStrategy:
     self.trades = Utils.getTradeManager(self.short_code).getAllTradesByStrategy(self.name)
     self.expiryDay = 2
     self.symbol = "BANKNIFTY"
-    self.multiple = multiple
 
   def getName(self):
     return self.name
@@ -49,7 +49,7 @@ class BaseStrategy:
     self.enabled = False
 
   def getMultiple(self):
-    return float(self.multiple)
+    return float(getBrokerAppConfig(self.short_code).get("multiple", 1))
 
   def getLots(self):
     lots = Utils.getTradeManager(self.short_code).algoConfig.getLots(self.getName(),  self.symbol, self.expiryDay) * self.getMultiple()

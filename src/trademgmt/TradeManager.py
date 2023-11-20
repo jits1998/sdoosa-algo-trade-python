@@ -467,6 +467,13 @@ class TradeManager(Thread):
 
         if orderCanceled == len(trade.entryOrder):
             trade.tradeState = TradeState.CANCELLED
+        if orderCanceled > 0:
+            strategy = self.strategyToInstanceMap[trade.strategy]
+            for trade in strategy.trades:
+                if trade.tradeState in (TradeState.ACTIVE):
+                    trade.target = self.symbolToCMPMap[trade.tradingSymbol]
+                    self.squareOffTrade(trade, TradeExitReason.TRADE_FAILED)
+                strategy.setDisabled()
 
         # Update the current market price and calculate pnl
         trade.cmp = self.symbolToCMPMap[trade.tradingSymbol]
@@ -507,6 +514,7 @@ class TradeManager(Thread):
             slAverage = 0
             slQuantity = 0
             slCancelled = 0
+            slRejected = 0
             slOpen = 0
             for slOrder in trade.slOrder:
                 if slOrder.orderStatus == OrderStatus.COMPLETE:
@@ -515,6 +523,8 @@ class TradeManager(Thread):
                     slQuantity  += slOrder.filledQty
                 elif slOrder.orderStatus == OrderStatus.CANCELLED:
                     slCancelled+=1
+                elif slOrder.orderStatus == OrderStatus.REJECTED:
+                    slRejected+=1
                 elif slOrder.orderStatus == OrderStatus.OPEN:
                     slOpen+=1
                     omp = OrderModifyParams()
@@ -551,6 +561,13 @@ class TradeManager(Thread):
                     exit = self.symbolToCMPMap[trade.tradingSymbol]
                     self.setTradeToCompleted(
                         trade, exit, TradeExitReason.SL_CANCELLED)
+            elif slRejected > 0:
+                strategy = self.strategyToInstanceMap[trade.strategy]
+                for trade in strategy.trades:
+                    if trade.tradeState in (TradeState.ACTIVE):
+                        trade.target = self.symbolToCMPMap[trade.tradingSymbol]
+                        self.squareOffTrade(trade, TradeExitReason.TRADE_FAILED)
+                    strategy.setDisabled()
             elif slOpen > 0 :
                 pass #handled above, skip calling trail SL
             else:
@@ -800,7 +817,7 @@ class TradeManager(Thread):
 
         if len(trade.targetOrder) > 0:
             # Change target order type to MARKET to exit position immediately
-            logging.info('TradeManager: changing target order to MARKET to exit position for tradeID %s',
+            logging.info('TradeManager: changing target order to closer to MARKET to exit tradeID %s',
                          trade.tradeID)
             for targetOrder in trade.targetOrder:
                 if targetOrder.orderStatus == OrderStatus.OPEN:
@@ -809,7 +826,7 @@ class TradeManager(Thread):
                         trade.cmp * (0.99 if trade.direction == Direction.LONG else 1.01))
                     self.getOrderManager(self.getName()).modifyOrder(
                         targetOrder, omp, trade.qty)
-        else:
+        elif trade.entry > 0:
             # Place new target order to exit position, adjust target to current market price
             trade.target = trade.cmp * \
                 (0.99 if trade.direction == Direction.LONG else 1.01)

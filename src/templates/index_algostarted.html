@@ -101,7 +101,7 @@
               ({{"%.2f"|format(totalBuys[trade.tradingSymbol] / totalSells[trade.tradingSymbol])}})
             {% endif %}
           {% endif %}</td>
-          <td style="text-align: right;min-width: 50px;">{{trade.qty}}</td>
+          <td style="text-align: right;min-width: 50px;">{{trade.filledQty}}</td>
           <td style="text-align: right;min-width: 50px;">{{"%.2f"|format(trade.entry)}}</td>
           {% if trade.exit == 0 and not trade.tradeState in ['cancelled'] %}
             

@@ -24,18 +24,19 @@ class ZerodhaOrderManager(BaseOrderManager):
     kite = self.brokerHandle
     orderInputParams.qty = int(orderInputParams.qty)
     import math
+    freeze_limit = 900 if orderInputParams.tradingSymbol.startswith("BANK") else 1800
     lot_size = Instruments.getInstrumentDataBySymbol(orderInputParams.tradingSymbol)['lot_size']
-    leg_count = max(math.ceil(orderInputParams.qty/900), 2)
+    leg_count = max(math.ceil(orderInputParams.qty/freeze_limit), 2)
     slice = orderInputParams.qty / leg_count
     iceberg_quantity = math.ceil(slice / lot_size) * lot_size
     iceberg_legs = leg_count
     
-    if orderInputParams.qty>900 and orderInputParams.orderType == OrderType.MARKET:
+    if orderInputParams.qty>freeze_limit and orderInputParams.orderType == OrderType.MARKET:
       orderInputParams.orderType = OrderType.LIMIT
 
     try:
       orderId = kite.place_order(
-        variety= kite.VARIETY_REGULAR if orderInputParams.qty<=900 else kite.VARIETY_ICEBERG,
+        variety= kite.VARIETY_REGULAR if orderInputParams.qty<=freeze_limit else kite.VARIETY_ICEBERG,
         iceberg_legs = iceberg_legs,
         iceberg_quantity = iceberg_quantity,
         exchange=kite.EXCHANGE_NFO if orderInputParams.isFnO == True else kite.EXCHANGE_NSE,
@@ -66,14 +67,20 @@ class ZerodhaOrderManager(BaseOrderManager):
     logging.debug('%s:%s:: Going to modify order with params %s', self.broker, self.clientID, orderModifyParams)
     
     if order.orderType == OrderType.SL_LIMIT and orderModifyParams.newTriggerPrice == order.triggerPrice:
+      logging.info('%s:%s:: Not Going to modify order with params %s', self.broker, self.clientID, orderModifyParams)
       #nothing to modify
+      return order
+    elif order.orderType == OrderType.LIMIT and orderModifyParams.newPrice < 0 or orderModifyParams.newPrice == order.price:
+      #nothing to modify
+      logging.info('%s:%s:: Not Going to modify order with params %s', self.broker, self.clientID, orderModifyParams)
       return order
     
     kite = self.brokerHandle
+    freeze_limit = 900 if order.tradingSymbol.startswith("BANK") else 1800
 
     try:
       orderId = kite.modify_order(
-        variety= kite.VARIETY_REGULAR if tradeQty<=900 else kite.VARIETY_ICEBERG,
+        variety= kite.VARIETY_REGULAR if tradeQty<=freeze_limit else kite.VARIETY_ICEBERG,
         order_id=order.orderId,
         quantity=int(orderModifyParams.newQty) if orderModifyParams.newQty > 0 else None,
         price=orderModifyParams.newPrice if orderModifyParams.newPrice > 0 else None,
@@ -112,9 +119,10 @@ class ZerodhaOrderManager(BaseOrderManager):
   def cancelOrder(self, order):
     logging.debug('%s:%s Going to cancel order %s', self.broker, self.clientID, order.orderId)
     kite = self.brokerHandle
+    freeze_limit = 900 if order.tradingSymbol.startswith("BANK") else 1800
     try:
       orderId = kite.cancel_order(
-        variety= kite.VARIETY_REGULAR if order.qty<=900 else kite.VARIETY_ICEBERG,
+        variety= kite.VARIETY_REGULAR if order.qty<=freeze_limit else kite.VARIETY_ICEBERG,
         order_id=order.orderId)
 
       logging.info('%s:%s Order cancelled successfully, orderId = %s', self.broker, self.clientID, orderId)

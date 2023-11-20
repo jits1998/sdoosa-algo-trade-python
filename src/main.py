@@ -54,6 +54,9 @@ initLoggingConfg(logFileDir + "/app.log")
 
 logging.info('serverConfig => %s', serverConfig)
 
+werkzeugLog = logging.getLogger('werkzeug')
+werkzeugLog.setLevel(logging.ERROR)
+
 # brokerAppConfig = getBrokerAppConfig()
 # logging.info('brokerAppConfig => %s', brokerAppConfig)
 
@@ -68,7 +71,7 @@ def timectime(s):
 
 app.jinja_env.filters['ctime']= timectime
 
-app.run('localhost', port, debug=True)
+# app.run(host = '0.0.0.0', port = port, debug=True)
 
 
 

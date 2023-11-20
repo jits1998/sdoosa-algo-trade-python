@@ -18,7 +18,8 @@ class StartAlgoAPI(MethodView):
       algoConfigModule = importlib.import_module('algos.' + algoType, algoType)
       algoConfigClass = getattr(algoConfigModule, algoType)
       # start algo in a separate thread
-      x = threading.Thread(target = algoConfigClass().startAlgo, name="Algo", args=(session['access_token'], session['short_code'],))
+      x = threading.Thread(target = algoConfigClass().startAlgo, name="Algo", args=(session['access_token'], session['short_code'],\
+                                                                                    getBrokerAppConfig(session['short_code']).get("multiple", 1),))
 
       x.start()
       time.sleep(5)
